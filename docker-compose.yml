@@ -1,0 +1,66 @@
+version: "3.7"
+services:
+  # -------------------- Kafka Core Services --------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL: PLAINTEXT, EXTERNAL: PLAINTEXT"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:9092, EXTERNAL://localhost:29092"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local-docker-kafka"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+
+  # -------------------- SQL Server Service --------------------
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-db
+    ports:
+      - "1433:1433"
+    environment:
+      SA_PASSWORD: "YourStrong!Password" # CHANGE THIS
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./init/setup.sql:/usr/config/setup.sql
+
+  # -------------------- .NET Core Consumer (Ingest Server) --------------------
+  ingestserver:
+    build:
+      context: . # Build context is the root folder
+      dockerfile: ingestserver/Dockerfile # Path is relative to the root
+    container_name: dotnet-ingest-server
+    depends_on:
+      - kafka
+      - mssql
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      SQL_CONNECTION_STRING: "Server=mssql;Database=KafkaDataDB;User Id=sa;Password=YourStrong!Password;TrustServerCertificate=True"
+      KAFKA_TOPIC_NAME: "IngestTopic"
+
+volumes:
+  sqlserver_data:

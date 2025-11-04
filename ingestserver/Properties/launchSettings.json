@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ingestserver": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
